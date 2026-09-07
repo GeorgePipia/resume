@@ -1,0 +1,10 @@
+import { isOwner } from '@/app/owner';
+import { getStore } from '@netlify/blobs';
+export async function PUT(request:Request){
+if(!await isOwner())return Response.json({error:'Owner sign-in required.'},{status:403});
+if(request.headers.get('origin')!==new URL(request.url).origin)return Response.json({error:'Invalid origin.'},{status:403});
+const text=await request.text();if(text.length>100000)return Response.json({error:'Resume is too large.'},{status:413});
+let body;try{body=JSON.parse(text)}catch{return Response.json({error:'Invalid request.'},{status:400})}
+const r=body.resume;const string=(v:unknown)=>typeof v==='string'&&v.length<=10000;
+if(!r||!(['photoX','photoY','photoZoom'] as const).every(k=>r[k]===undefined||(typeof r[k]==='number'&&Number.isFinite(r[k])&&r[k]>=(k==='photoZoom'?1:0)&&r[k]<=(k==='photoZoom'?3:100)))||(r.secondaryEmail!==undefined&&(!string(r.secondaryEmail)||(r.secondaryEmail&&!/^\S+@\S+\.\S+$/.test(r.secondaryEmail))))||!['name','headline','location','email','phone','summary','photo'].every(k=>string(r[k]))||!Array.isArray(r.sections)||r.sections.length>20||!r.sections.every((s:any)=>string(s.title)&&Array.isArray(s.entries)&&s.entries.length<=50&&s.entries.every((e:any)=>['title','place','dates','details'].every(k=>string(e[k]))))||!Number.isInteger(body.revision)||body.revision<0||!r.name.trim()||!/^\S+@\S+\.\S+$/.test(r.email)||(r.photo&&!/^https:\/\//.test(r.photo)&&!/^\/api\/photo\/[a-f0-9-]{36}$/.test(r.photo)))return Response.json({error:'Check your fields. A name, valid email, and HTTPS photo URL are required (photo may be blank).'},{status:400});
+const store=getStore({name:'resume-data',consistency:'strong'});const current=await store.get('resume',{type:'json'}) as {revision:number}|null;if((current?.revision??0)!==body.revision)return Response.json({error:'This resume changed in another session. Reload before saving.'},{status:409});await store.setJSON('resume',{resume:r,revision:body.revision+1});return Response.json({revision:body.revision+1});}

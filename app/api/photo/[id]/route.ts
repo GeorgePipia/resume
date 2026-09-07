@@ -1,0 +1,2 @@
+import { getStore } from '@netlify/blobs';
+export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){const {id}=await params;if(!/^[a-f0-9-]{36}$/.test(id))return new Response('Not found',{status:404});const photo=await getStore({name:'resume-photos'}).get(id,{type:'blob'});if(!photo)return new Response('Not found',{status:404});return new Response(photo,{headers:{'Content-Type':'image/jpeg','Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'}});}
