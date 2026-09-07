@@ -1,5 +1,7 @@
 import { isOwner } from '@/app/owner';
 import { getStore } from '@netlify/blobs';
+import {readResume} from '@/db/content';
+export async function GET(){return Response.json(await readResume(),{headers:{'Cache-Control':'no-store'}});}
 export async function PUT(request:Request){
 if(!await isOwner())return Response.json({error:'Owner sign-in required.'},{status:403});
 if(request.headers.get('origin')!==new URL(request.url).origin)return Response.json({error:'Invalid origin.'},{status:403});

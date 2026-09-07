@@ -1,0 +1,15 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {getUser,login,logout,handleAuthCallback,requestPasswordRecovery,updateUser,acceptInvite} from '@netlify/identity';
+import Editor from './editor';
+import type {Resume} from '../resume';
+export default function AdminAccess(){
+ const [data,setData]=useState<{resume:Resume;revision:number}|null>(null);
+ const [mode,setMode]=useState('loading');const [message,setMessage]=useState('');
+ const [email,setEmail]=useState('tskali0zamboni@gmail.com');const [password,setPassword]=useState('');const [invite,setInvite]=useState('');const [busy,setBusy]=useState(false);
+ async function enter(){const u=await getUser();if(!u){setMode('login');return;}if(u.email?.toLowerCase()!=='tskali0zamboni@gmail.com'){setMode('login');throw Error('Please sign in with the owner email: tskali0zamboni@gmail.com');}const r=await fetch('/api/resume',{cache:'no-store'});if(!r.ok)throw Error('Could not load the resume. Please try again.');setData(await r.json());setMode('editor');}
+ useEffect(()=>{(async()=>{try{const callback=await handleAuthCallback();if(callback?.type==='recovery'){setMode('reset');return;}if(callback?.type==='invite'){setInvite(callback.token??'');setMode('reset');return;}await enter();}catch(e){setMessage(e instanceof Error?e.message:'Unable to sign in.');setMode('login');}})();},[]);
+ async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage('');try{if(mode==='reset'){if(invite)await acceptInvite(invite,password);else await updateUser({password});}else await login(email,password);setPassword('');await enter();}catch(e){setMessage(e instanceof Error?e.message:'Unable to sign in.');}finally{setBusy(false);}}
+ if(mode==='editor'&&data)return <><div className="editor"><button onClick={async()=>{await logout();setData(null);setMode('login');}}>Sign out</button></div><Editor initial={data.resume} revision={data.revision}/></>;
+ return <main className="editor"><a href="/">← View resume</a><h1 style={{marginTop:32}}>Resume editor</h1>{mode==='loading'?<p>Checking your session…</p>:<form onSubmit={submit}><p>{mode==='reset'?'Choose a new password to finish restoring your account.':'Sign in to add information, upload a portrait, and publish changes.'}</p><fieldset disabled={busy}>{mode!=='reset'&&<label>Email<input type="email" autoComplete="username" required value={email} onChange={e=>setEmail(e.target.value)}/></label>}<label>{mode==='reset'?'New password':'Password'}<input type="password" autoComplete={mode==='reset'?'new-password':'current-password'} minLength={mode==='reset'?8:undefined} required value={password} onChange={e=>setPassword(e.target.value)}/></label><button type="submit">{busy?'Please wait…':mode==='reset'?'Set password':'Sign in'}</button>{mode!=='reset'&&<button type="button" onClick={async()=>{setBusy(true);try{await requestPasswordRecovery(email);setMessage('Check your email. Open the newest reset link to choose a password.');}catch(e){setMessage(e instanceof Error?e.message:'Could not send email.');}finally{setBusy(false);}}}>Send password reset email</button>}</fieldset></form>}<p role="status">{message}</p></main>;
+}
